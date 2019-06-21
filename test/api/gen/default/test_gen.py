@@ -16,6 +16,7 @@ def clean_up():
         rimraf(file)
         rimraf(file + '.temp.nc')  # May remain from Netcdf4DatasetIO.append()
     rimraf(get_inputdata_path("input.txt"))
+    rimraf(get_inputdata_path("input_r.txt"))
 
 
 class DefaultProcessTest(unittest.TestCase):
@@ -76,9 +77,24 @@ class DefaultProcessTest(unittest.TestCase):
         self.assertIn('lon', ds.coords)
         self.assertFalse(np.any(ds.coords['lon'] > 180.))
 
+    def test_sortby_time(self):
+        f = open((os.path.join(os.path.dirname(__file__), 'inputdata', "input_r.txt")), "w+")
+        for i in reversed(range(1, 4)):
+            file_name = "2017010" + str(i) + "-IFR-L4_GHRSST-SSTfnd-ODYSSEA-NWE_002-v2.0-fv1.0.nc"
+            file = get_inputdata_path(file_name)
+            f.write("%s\n" % file)
+        f.close()
+        status = gen_cube_wrapper(
+            [get_inputdata_path('input_r.txt')],
+            'l2c.zarr',
+            True,
+            sort_mode='time',
+        )
+        self.assertEqual(True, status)
+
 
 # noinspection PyShadowingBuiltins
-def gen_cube_wrapper(input_paths, output_path, append_mode):
+def gen_cube_wrapper(input_paths, output_path, append_mode, **kwargs):
     config = get_config_dict(locals())
     return gen_cube(input_processor='default',
                     output_size=(320, 180),

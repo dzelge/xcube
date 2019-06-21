@@ -26,6 +26,7 @@ import os
 import pstats
 import time
 import traceback
+import xarray as xr
 from typing import Sequence, Callable, Tuple, Dict, Any
 
 from .defaults import DEFAULT_OUTPUT_SIZE, DEFAULT_OUTPUT_RESAMPLING, DEFAULT_OUTPUT_PATH
@@ -48,11 +49,11 @@ def gen_cube(input_paths: Sequence[str] = None, input_processor: str = None, inp
              output_writer: str = None, output_writer_params: Dict[str, Any] = None,
              output_metadata: NameAnyDict = None, output_variables: NameDictPairList = None,
              processed_variables: NameDictPairList = None, append_mode: bool = False, dry_run: bool = False,
-             monitor: Callable[..., None] = None, sort_mode: bool = False) -> bool:
+             monitor: Callable[..., None] = None, sort_mode: str = None) -> bool:
     """
     Generate a data cube from one or more input files.
 
-    :param sort_mode:
+    :param sort_mode: Sorts the input files.
     :param input_paths: The input paths.
     :param input_processor: Name of a registered input processor (xcube.api.gen.inputprocessor.InputProcessor)
            to be used to transform the inputs
@@ -108,10 +109,12 @@ def gen_cube(input_paths: Sequence[str] = None, input_processor: str = None, inp
         def monitor(*args):
             pass
 
-    if sort_mode is True:
-        input_paths = sorted([input_file for f in input_paths for input_file in glob.glob(f, recursive=True)])
-    else:
+    if sort_mode is None:
         input_paths = [input_file for f in input_paths for input_file in glob.glob(f, recursive=True)]
+    elif sort_mode is "time":
+        input_paths = _sort_by_time(input_paths)
+    else:
+        input_paths = sorted([input_file for f in input_paths for input_file in glob.glob(f, recursive=True)])
 
     if not dry_run:
         output_dir = os.path.abspath(os.path.dirname(output_path))
@@ -154,6 +157,35 @@ def gen_cube(input_paths: Sequence[str] = None, input_processor: str = None, inp
             f'{ds_count - ds_count_ok} were dropped due to errors')
 
     return status
+
+
+def _sort_by_time(input_paths, input_reader, input_processor, monitor):
+    input_names = []
+    times = []
+    for input_file in input_paths:
+        try:
+            input_dataset = input_reader.read(input_file)
+            monitor(f'Dataset read for sorting by time:\n{input_dataset}')
+        except Exception as e:
+            monitor(f'ERROR: cannot read input: {e}: skipping...')
+            traceback.print_exc()
+            return False
+        time_range = input_processor.get_time_range(input_dataset)
+        if _get_half_time(time_range) not in times:
+            input_names.append(input_file)
+            times.append(_get_half_time(time_range))
+
+    times, input_names = (list(t) for t in zip(*sorted(zip(times, input_names))))
+
+    return input_names
+
+
+def _get_half_time(time_range):
+    start_time = time_range[0]
+    end_time = time_range[0]
+    half_seconds = (end_time - start_time) / 2
+    halftime = start_time + half_seconds
+    return halftime
 
 
 def _process_input(input_processor: InputProcessor,

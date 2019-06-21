@@ -67,9 +67,9 @@ resampling_algs = NAME_TO_GDAL_RESAMPLE_ALG.keys()
                    f'The choices for the resampling algorithm are: {resampling_algs}')
 @click.option('--append', '-a', is_flag=True,
               help='Append successive outputs.')
-@click.option('--sort', is_flag=True,
+@click.option('--sortby', type=click.Choice('time', 'name'),
               help='The input file list will be sorted before creating the data cube. '
-                   'If --sort parameter is not passed, order of input list will be kept.')
+                   'If --sortby parameter is not passed, order of input list will be kept.')
 @click.option('--info', '-i', is_flag=True,
               help='Displays additional information about format options or about input processors.')
 @click.option('--dry_run', is_flag=True,
@@ -86,7 +86,7 @@ def gen(inputs: str,
         append: bool,
         dry_run: bool,
         info: bool,
-        sort: bool):
+        sortby: str):
     """
     Generate data cube.
     Data cubes may be created in one go or successively in append mode, input by input.
@@ -106,7 +106,7 @@ def gen(inputs: str,
     append_mode = append
     dry_run = dry_run
     info_mode = info
-    sort_mode = sort
+    sort_mode = sortby
 
     # Force loading of plugins
     __import__('xcube.util.plugin')
